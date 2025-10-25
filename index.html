@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>1:1 Meeting Kanban Board</title>
+<style>
+:root {
+  --bg: #0f1724;
+  --card: #0b1220;
+  --muted: #9aa7bf;
+  --accent1: #7c5cff;
+  --accent2: #00d4ff;
+  --glass: rgba(255,255,255,0.04);
+  --radius: 14px;
+  --shadow: 0 6px 20px rgba(2,6,23,0.6);
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #071026 0%, #071627 100%);
+  color: #e6eef8;
+  padding: 28px;
+  display: flex;
+  justify-content: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 1300px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+h1 {margin:0;font-size:22px;}
+header button {
+  background: linear-gradient(90deg,var(--accent1),var(--accent2));
+  border:none;border-radius:10px;
+  padding:8px 14px;
+  color:white;
+  cursor:pointer;
+  font-weight:600;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(280px,1fr));
+  gap: 20px;
+}
+
+.column {
+  background: var(--glass);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(8px);
+}
+
+.column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.column-header h2 {font-size:16px;margin:0;}
+.info-icon {
+  cursor: pointer;
+  font-weight: bold;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted);
+  background: rgba(255,255,255,0.05);
+}
+.card {
+  background: rgba(255,255,255,0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
+  padding: 12px;
+  margin-top: 10px;
+  box-shadow: 0 8px 18px rgba(2,6,23,0.45);
+}
+.card[draggable="true"] {cursor: grab;}
+textarea {
+  width: 100%; border: none; resize: none;
+  background: transparent; color: #fff;
+  font-size: 14px; padding: 5px;
+}
+textarea:focus {outline:none;}
+.checklist label {font-size:13px;color:var(--muted);}
+.due-date {
+  font-size: 12px; color: #ddd;
+  background: rgba(255,255,255,0.08);
+  border: none; border-radius: 6px;
+  padding: 4px; margin-top: 6px;
+  width: 100%;
+}
+.add-card {
+  margin-top: auto;
+  background: linear-gradient(90deg,var(--accent1),var(--accent2));
+  color: white; border: none;
+  padding: 10px; border-radius: 8px;
+  cursor: pointer; font-weight:600;
+}
+.add-card:hover {opacity:0.9;}
+
+/* Info modals */
+.modal {
+  display:none; position:fixed; left:0; top:0;
+  width:100%; height:100%; background:rgba(0,0,0,0.6);
+  z-index:100; justify-content:center; align-items:center;
+}
+.modal-content {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  width: 90%; max-width: 480px;
+  padding: 24px;
+  color: white;
+}
+.close {
+  float:right; font-size:22px; cursor:pointer; color:var(--muted);
+}
+.close:hover {color:white;}
+
+/* Popup Add-Card Modal */
+#cardModal {
+  display:flex; justify-content:center; align-items:center;
+  visibility:hidden; opacity:0;
+  transition:0.25s;
+  position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.6);
+}
+#cardModal.active {visibility:visible; opacity:1;}
+#cardModal .modal-content {
+  display:flex; flex-direction:column; gap:12px;
+}
+#cardModal input[type="text"], #cardModal input[type="date"] {
+  background:rgba(255,255,255,0.05);
+  border:none; border-radius:8px; color:white;
+  padding:10px; width:100%; outline:none;
+}
+.checklist-area {display:flex;flex-direction:column;gap:8px;}
+.check-line {display:flex;gap:8px;}
+.check-line input {flex:1;}
+.btn {background:linear-gradient(90deg,var(--accent1),var(--accent2));border:none;border-radius:8px;padding:8px 12px;color:white;cursor:pointer;font-weight:600;}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🗓 1:1 Meeting Kanban Board</h1>
+    <button id="resetBtn">Reset</button>
+  </header>
+
+  <div class="board">
+    <div class="column" id="updates">
+      <div class="column-header"><h2>Updates</h2><div class="info-icon" onclick="openInfo('updatesInfo')">i</div></div>
+      <button class="add-card" onclick="openAddModal('updates')">+ Add Card</button>
+    </div>
+
+    <div class="column" id="blockers">
+      <div class="column-header"><h2>Blockers</h2><div class="info-icon" onclick="openInfo('blockersInfo')">i</div></div>
+      <button class="add-card" onclick="openAddModal('blockers')">+ Add Card</button>
+    </div>
+
+    <div class="column" id="asks">
+      <div class="column-header"><h2>Asks</h2><div class="info-icon" onclick="openInfo('asksInfo')">i</div></div>
+      <button class="add-card" onclick="openAddModal('asks')">+ Add Card</button>
+    </div>
+
+    <div class="column" id="next">
+      <div class="column-header"><h2>Looking Ahead</h2><div class="info-icon" onclick="openInfo('nextInfo')">i</div></div>
+      <button class="add-card" onclick="openAddModal('next')">+ Add Card</button>
+    </div>
+  </div>
+</div>
+
+<!-- Info Modals -->
+<div id="updatesInfo" class="modal">
+  <div class="modal-content">
+      <span class="close" onclick="closeInfo('updatesInfo')">&times;</span>
+      <h2>1️⃣ Updates — What I’ve accomplished since our last meeting</h2>
+      <p>
+      <strong>Focus on outcomes and impact, not just activities.</strong><br><br>
+      <ul>
+          <li>Key deliverables completed</li>
+          <li>Progress toward goals or KPIs</li>
+          <li>Wins or improvements worth highlighting</li>
+      </ul>
+      <strong>Example:</strong><br>
+      • Completed customer feedback analysis → identified top 3 pain points.<br>
+      • Improved process efficiency by 12% after automating reporting.
+      </p>
+  </div>
+</div>
+
+<div id="blockersInfo" class="modal">
+  <div class="modal-content">
+      <span class="close" onclick="closeInfo('blockersInfo')">&times;</span>
+      <h2>2️⃣ Blockers — What’s slowing me down</h2>
+      <p>
+      <strong>Be open and specific. Sharing early helps resolve issues faster.</strong><br><br>
+      <ul>
+          <li>Challenges, risks, or unclear priorities</li>
+          <li>Cross-team dependencies or resource gaps</li>
+          <li>Technical or process bottlenecks</li>
+      </ul>
+      <strong>Example:</strong><br>
+      • Waiting for final data access approval.<br>
+      • Unclear ownership between Sales Ops and Marketing.
+      </p>
+  </div>
+</div>
+
+<div id="asksInfo" class="modal">
+  <div class="modal-content">
+      <span class="close" onclick="closeInfo('asksInfo')">&times;</span>
+      <h2>3️⃣ Asks — What I need from you</h2>
+      <p>
+      <strong>Be direct and solution-oriented.</strong><br><br>
+      <ul>
+          <li>Guidance or feedback needed</li>
+          <li>Decision or approval required</li>
+          <li>Support or resources to move forward</li>
+      </ul>
+      <strong>Example:</strong><br>
+      • Input on finalizing process map.<br>
+      • Requesting budget approval for Lean training tool.
+      </p>
+  </div>
+</div>
+
+<div id="nextInfo" class="modal">
+  <div class="modal-content">
+      <span class="close" onclick="closeInfo('nextInfo')">&times;</span>
+      <h2>4️⃣ Looking Ahead — What’s next</h2>
+      <p>
+      <strong>Set direction and maintain momentum.</strong><br><br>
+      <ul>
+          <li>Key priorities before next meeting</li>
+          <li>Learning or growth areas to focus on</li>
+      </ul>
+      <strong>Example:</strong><br>
+      • Begin pilot testing of new SOPs.<br>
+      • Attend data storytelling workshop.
+      </p>
+  </div>
+</div>
+
+<!-- Add Card Modal -->
+<div id="cardModal">
+  <div class="modal-content">
+    <button class="close" onclick="closeAddModal()">✕</button>
+    <h3 id="modalTitle">New Card</h3>
+    <input type="text" id="cardTitle" placeholder="Card title..."/>
+    <input type="date" id="cardDue"/>
+    <h4>Checklist</h4>
+    <div class="checklist-area" id="checklistArea">
+      <div class="check-line">
+        <input type="text" placeholder="Checklist item..."/>
+        <button class="btn" onclick="addChecklistLine()">+</button>
+      </div>
+    </div>
+    <button class="btn" onclick="saveNewCard()">Save</button>
+    <button class="btn" id="deleteCardBtn" style="background:red; display:none;">Delete Card</button>
+  </div>
+</div>
+
+<script>
+let draggedCard = null;
+let activeColumn = null;
+const LS_KEY = "modern_kanban_v3";
+let boardState = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+let editingCard = null;
+
+// Info modals
+function openInfo(id){ document.getElementById(id).style.display='flex'; }
+function closeInfo(id){ document.getElementById(id).style.display='none'; }
+
+// Modal open/close
+function openAddModal(col){
+  activeColumn = col;
+  editingCard = null;
+  document.getElementById('cardTitle').value='';
+  document.getElementById('cardDue').value='';
+  const area = document.getElementById('checklistArea');
+  area.innerHTML='<div class="check-line"><input type="text" placeholder="Checklist item..."/><button class="btn" onclick="addChecklistLine()">+</button></div>';
+  document.getElementById('deleteCardBtn').style.display='none';
+  document.getElementById('modalTitle').textContent = 'New Card';
+  document.getElementById('cardModal').classList.add('active');
+}
+
+function closeAddModal(){ 
+  document.getElementById('cardModal').classList.remove('active'); 
+}
+
+// Close modal by clicking outside content
+document.getElementById('cardModal').addEventListener('click', function(e){
+  if(e.target === this) closeAddModal();
+});
+
+// Close modal by pressing ESC key
+document.addEventListener('keydown', function(e){
+  if(e.key === "Escape") closeAddModal();
+});
+
+function addChecklistLine(value = '') {
+  const area = document.getElementById('checklistArea');
+
+  // Remove existing "+" button from previous last line
+  const lines = area.querySelectorAll('.check-line');
+  lines.forEach((line, idx) => {
+    const btn = line.querySelector('button');
+    if (btn && btn.textContent === '+') {
+      btn.textContent = '✕';
+      btn.onclick = () => line.remove();
+    }
+  });
+
+  // Create new line with "+" button
+  const div = document.createElement('div');
+  div.className = 'check-line';
+  div.innerHTML = `
+    <input type="text" placeholder="Checklist item..." value="${value}"/>
+    <button class="btn">+</button>
+  `;
+
+  // Add click listener for new "+" button
+  div.querySelector('button').onclick = () => addChecklistLine();
+
+  area.appendChild(div);
+}
+
+
+// Open card for editing
+function openEditCard(card){
+  editingCard = card;
+  document.getElementById('cardTitle').value = card.querySelector('textarea').value;
+  document.getElementById('cardDue').value = card.querySelector('.due-date').value;
+
+  const area = document.getElementById('checklistArea');
+  area.innerHTML = '';
+  card.querySelectorAll('.checklist label').forEach(l=>{
+    const div = document.createElement('div');
+    div.className='check-line';
+    div.innerHTML = `<input type="text" value="${l.textContent.trim()}"/><button class="btn" onclick="this.parentNode.remove()">✕</button>`;
+    area.appendChild(div);
+  });
+  addChecklistLine();
+
+  document.getElementById('deleteCardBtn').style.display='block';
+  document.getElementById('modalTitle').textContent = 'Edit Card';
+  document.getElementById('cardModal').classList.add('active');
+}
+
+// Save card (new or edit)
+function saveNewCard(){
+  const title = document.getElementById('cardTitle').value.trim();
+  if(!title){ alert('Enter card title'); return; }
+
+  const due = document.getElementById('cardDue').value;
+  const checklist = [...document.querySelectorAll('#checklistArea input[type=text]')]
+    .map(i => i.value.trim())
+    .filter(Boolean);
+
+  if(editingCard){
+    // Edit existing card
+    editingCard.querySelector('textarea').value = title;
+    editingCard.querySelector('.due-date').value = due;
+
+    editingCard.querySelectorAll('.checklist').forEach(c=>c.remove());
+    checklist.forEach(c=>{
+      const div = document.createElement('div');
+      div.className='checklist';
+      div.innerHTML=`<label><input type="checkbox"> ${c}</label>`;
+      editingCard.insertBefore(div, editingCard.querySelector('.due-date'));
+    });
+
+    editingCard = null;
+    closeAddModal();
+    saveBoard();
+    return;
+  }
+
+  // New card
+  addCard(activeColumn, {text:title, checklist, dueDate:due});
+  closeAddModal();
+}
+
+// Delete button inside modal
+document.getElementById('deleteCardBtn').onclick = function(){
+  if(editingCard && confirm('Are you sure you want to delete this card?')){
+    editingCard.remove();
+    editingCard = null;
+    saveBoard();
+    closeAddModal();
+  }
+}
+
+// Add card to column
+function addCard(columnId, cardData){
+  const col = document.getElementById(columnId);
+  const card = document.createElement('div');
+  card.className='card';
+  card.draggable = true;
+
+  card.innerHTML = `
+    <textarea placeholder="Enter task...">${cardData?.text || ''}</textarea>
+    ${(cardData?.checklist || []).map(c=>`<div class='checklist'><label><input type='checkbox'> ${c}</label></div>`).join('')}
+    <input type='date' class='due-date' value='${cardData?.dueDate || ''}'>
+    <button class="btn delete-card-btn" style="margin-top:6px;background:red; display:none;">Delete</button>
+  `;
+
+  card.addEventListener('dragstart', e=>{ draggedCard = card; });
+  card.addEventListener('input', saveBoard);
+  card.querySelectorAll('input').forEach(inp=>inp.addEventListener('change', saveBoard));
+
+  // Double-click to edit
+  card.addEventListener('dblclick', ()=> openEditCard(card));
+
+  // Delete button on card (shown inside modal only)
+  card.querySelector('.delete-card-btn').addEventListener('click', ()=>{
+    if(confirm('Are you sure you want to delete this card?')){
+      card.remove();
+      saveBoard();
+    }
+  });
+
+  col.insertBefore(card, col.querySelector('.add-card'));
+  saveBoard();
+}
+
+// Drag & drop
+document.querySelectorAll('.column').forEach(col=>{
+  col.addEventListener('dragover', e=>e.preventDefault());
+  col.addEventListener('drop', e=>{
+    e.preventDefault();
+    if(draggedCard){
+      e.currentTarget.insertBefore(draggedCard, e.currentTarget.querySelector('.add-card'));
+      saveBoard();
+      draggedCard=null;
+    }
+  });
+});
+
+// Save board state
+function saveBoard(){
+  const data={};
+  document.querySelectorAll('.column').forEach(col=>{
+    data[col.id]=[];
+    col.querySelectorAll('.card').forEach(card=>{
+      data[col.id].push({
+        text: card.querySelector('textarea').value,
+        dueDate: card.querySelector('.due-date').value,
+        checklist: [...card.querySelectorAll('.checklist label')].map(l=>l.textContent.trim())
+      });
+    });
+  });
+  localStorage.setItem(LS_KEY, JSON.stringify(data));
+}
+
+// Load board
+function loadBoard(){
+  const saved = JSON.parse(localStorage.getItem(LS_KEY));
+  if(!saved) return;
+  for(const col in saved){
+    saved[col].forEach(c=>addCard(col,c));
+  }
+}
+
+// Reset
+document.getElementById('resetBtn').onclick=()=>{
+  if(confirm('Clear all cards?')){
+    localStorage.removeItem(LS_KEY);
+    document.querySelectorAll('.card').forEach(c=>c.remove());
+  }
+};
+
+loadBoard();
+</script>
+</body>
+</html>
